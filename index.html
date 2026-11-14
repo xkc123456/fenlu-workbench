@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>分录工坊 · 会计业务工作台</title>
+<meta name="description" content="输入经营业务文字或图片，自动生成会计分录、科目、借贷金额与讲解，并配 T 型账户、资金流向图与三张财务报表。">
+<link rel="icon" href="assets/fenlu.ico" sizes="any">
+<link rel="stylesheet" href="assets/app.css?v=3.3">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="seal" aria-label="财"><img class="seal-glyph" src="assets/seal-cai.png" alt="财"></span>
+    <div class="brand-text">
+      <h1>分录工坊</h1>
+      <p>经营业务 → 会计分录 → T 型账户 · 财务报表</p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span id="balanceBadge" class="badge badge-muted">等待输入</span>
+    <button id="btnPresent" class="ghost" type="button">▶ 演示</button>
+    <button id="btnExport" class="ghost" type="button">导出 Markdown</button>
+    <button id="btnPrint" class="ghost" type="button">打印 / PDF</button>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- ============ 左侧录入区 ============ -->
+  <aside class="sidebar">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>题干</h2>
+        <span class="panel-hint">一段业务一段话，支持（1）（2）分小问</span>
+      </div>
+      <textarea id="source" spellcheck="false" placeholder="例：
+（1）2026年3月5日，购入原材料一批，价款100 000元，增值税13 000元，材料已验收入库，款项尚未支付。
+（2）3月8日，以银行存款支付上述材料款。"></textarea>
+
+      <div class="import-row">
+        <button type="button" class="chip import" id="btnImportFile">＋ 文件</button>
+        <button type="button" class="chip import" id="btnImportImage">＋ 图片 / OCR</button>
+        <input type="file" id="fileInput" hidden accept=".txt,.md,.csv,.json,.docx,.doc,.pdf">
+        <input type="file" id="imageInput" hidden accept="image/*">
+      </div>
+      <p class="import-status" id="importStatus">支持 txt / md / docx / 图片；图片识别需用 start-server.cmd 打开。</p>
+
+      <div class="opening-row">
+        <button type="button" class="chip" id="btnOpening">期初余额</button>
+        <span class="opening-state" id="openingState">未设置（期初为 0）</span>
+      </div>
+      <div class="opening-row">
+        <button type="button" class="chip" id="btnHistory">最近题目</button>
+        <span class="opening-state" id="historyState">自动保存已开启</span>
+      </div>
+      <div class="history-panel hidden" id="historyPanel"></div>
+
+      <div class="examples">
+        <span class="examples-label">载入示例</span>
+        <button type="button" class="chip" data-example="full">综合题 · 制造业全流程</button>
+        <button type="button" class="chip" data-example="purchase">采购与付款</button>
+        <button type="button" class="chip" data-example="sale">销售与退货</button>
+        <button type="button" class="chip" data-example="payroll">工资与社保</button>
+        <button type="button" class="chip" data-example="fixed">固定资产购建处置</button>
+        <button type="button" class="chip" data-example="financial">金融资产与坏账</button>
+        <button type="button" class="chip" data-example="otherDebt">其他债权投资（FVOCI）</button>
+        <button type="button" class="chip" data-example="advanced">进阶 · 长投/投资性房地产/租赁</button>
+      </div>
+
+      <details class="settings" open>
+        <summary>记账参数</summary>
+        <div class="settings-grid">
+          <label>记账日期
+            <input type="date" id="baseDate" value="2026-03-31">
+          </label>
+          <label>增值税率
+            <select id="vatRate">
+              <option value="0.13">13%（货物）</option>
+              <option value="0.09">9%（运输/不动产）</option>
+              <option value="0.06">6%（服务）</option>
+              <option value="0.03">3%（小规模）</option>
+            </select>
+          </label>
+          <label>城建税率
+            <select id="cityRate"><option value="0.07">7%</option><option value="0.05">5%</option><option value="0.01">1%</option></select>
+          </label>
+          <label>所得税率
+            <select id="incomeRate"><option value="0.25">25%</option><option value="0.2">20%</option><option value="0.15">15%</option></select>
+          </label>
+        </div>
+        <label class="check">
+          <input type="checkbox" id="autoClose">
+          <span>生成期末结转（增值税、附加税、所得税、损益结转、利润分配）</span>
+        </label>
+        <p class="mini">默认按一般纳税人、取得增值税专用发票处理；金额单位：元。</p>
+      </details>
+
+      <button id="btnRun" class="primary" type="button">生成分录</button>
+      <p id="runHint" class="run-hint">在左侧粘贴题干，点"生成分录"。也可用 <code>借：管理费用 5 000</code> / <code>贷：银行存款 5 000</code> 手工录入。</p>
+    </section>
+  </aside>
+
+  <!-- ============ 右侧结果区 ============ -->
+  <section class="content">
+    <nav class="tabs" id="tabs">
+      <button type="button" class="tab active" data-view="blocks">业务分板块</button>
+      <button type="button" class="tab" data-view="trial">试算平衡</button>
+      <button type="button" class="tab" data-view="reports">财务报表</button>
+      <button type="button" class="tab" data-view="flow">资金流总览</button>
+      <button type="button" class="tab" data-view="coverage">准则覆盖</button>
+    </nav>
+
+    <div id="viewBlocks" class="view"></div>
+    <div id="viewTrial" class="view hidden"></div>
+    <div id="viewReports" class="view hidden"></div>
+    <div id="viewFlow" class="view hidden"></div>
+    <div id="viewCoverage" class="view hidden"></div>
+
+    <div id="emptyState" class="empty">
+      <div class="empty-art" aria-hidden="true">
+        <span>借</span><span>贷</span>
+      </div>
+      <h3>从一句业务，看到一整条资金链</h3>
+      <p>输入题干（或导入图片/文档）后，系统会把它拆成板块与句子，识别业务类型，算出金额，生成分录，并画出"钱从哪来、到哪去"的 T 型账户图，最后汇总成三张报表。</p>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <p>教学演示工具：科目与规则按《企业会计准则》与现行增值税规定整理，真实业务请以最新准则、税法及专业判断为准。<span class="buildtag" id="buildTag">v3.3</span></p>
+</footer>
+
+<script src="src/core.js?v=3.3"></script>
+<script src="src/rules/helpers.js?v=3.3"></script>
+<script src="src/rules/fund.js?v=3.3"></script>
+<script src="src/rules/buy.js?v=3.3"></script>
+<script src="src/rules/produce.js?v=3.3"></script>
+<script src="src/rules/sell.js?v=3.3"></script>
+<script src="src/rules/invest.js?v=3.3"></script>
+<script src="src/rules/period.js?v=3.3"></script>
+<script src="src/rules/advanced.js?v=3.3"></script>
+<script src="src/rules/index.js?v=3.3"></script>
+<script src="src/parse.js?v=3.3"></script>
+<script src="src/engine.js?v=3.3"></script>
+<script src="src/reports.js?v=3.3"></script>
+<script src="src/coverage.js?v=3.3"></script>
+<script src="src/flow.js?v=3.3"></script>
+<script src="src/import.js?v=3.3"></script>
+<script src="src/opening.js?v=3.3"></script>
+<script src="src/examples.js?v=3.3"></script>
+<script src="src/app.js?v=3.3"></script>
+</body>
+</html>

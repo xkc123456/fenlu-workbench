@@ -1,0 +1,15 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+
+# 临时文件
+tmp-*
+*.tmp
+~$*
+
+# 依赖与本地配置（本项目是纯静态页面，正常不需要）
+node_modules/
+.vscode/
+.idea/
