@@ -155,7 +155,8 @@
   async function getWorker() {
     if (worker) return worker;
     if (typeof Tesseract === 'undefined') await loadScript('vendor/tesseract/tesseract.min.js');
-    const base = location.origin + '/vendor/tesseract';
+    // 用页面自身地址解析，兼容 file://、本地服务以及 GitHub Pages 的子路径
+    const base = new URL('vendor/tesseract/', document.baseURI).href.replace(/\/$/, '');
     worker = await Tesseract.createWorker('chi_sim', 1, {
       workerPath: base + '/worker.min.js',
       corePath: base,
